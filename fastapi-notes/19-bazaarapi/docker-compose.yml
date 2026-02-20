@@ -1,0 +1,26 @@
+# ============================================================
+# BazaarAPI — Docker Compose
+# ============================================================
+# Run the entire stack with: docker-compose up --build
+#
+# For production, you'd add:
+#   - PostgreSQL service
+#   - Redis for caching
+#   - Nginx reverse proxy
+#   - Volume for persistent database storage
+# ============================================================
+
+version: "3.8"
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    environment:
+      - DATABASE_URL=sqlite:///./bazaarapi.db
+    restart: unless-stopped

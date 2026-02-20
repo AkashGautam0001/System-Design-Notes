@@ -1,0 +1,48 @@
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: minglesphere-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - ./scripts/init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh:ro
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      test: |
+        mongosh --quiet --eval "
+          try {
+            const status = rs.status();
+            if (status.ok) quit(0);
+          } catch(e) {
+            try {
+              rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] });
+            } catch(ie) {}
+          }
+          quit(1);
+        "
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  mongo-express:
+    image: mongo-express:1.0-20-alpine3.19
+    container_name: minglesphere-admin
+    profiles:
+      - admin
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/?directConnection=true
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: pass
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
