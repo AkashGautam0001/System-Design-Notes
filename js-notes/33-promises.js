@@ -1,456 +1,454 @@
 /**
- * ========================================================
- *  FILE 33: PROMISES
- * ========================================================
- *  Topic  : Callback hell, the Promise constructor, .then,
- *           .catch, .finally, chaining, combinators
- *           (all, allSettled, race, any), resolve/reject
- *           shortcuts, and error propagation.
+ * ============================================================
+ *  FILE 33: Promises in JavaScript
+ * ============================================================
+ *  Topic  : Promise constructor, .then/.catch/.finally,
+ *           chaining, error propagation, and combinators
+ *           (all, allSettled, race, any).
  *
  *  Why it matters:
- *    Asynchronous operations are the heartbeat of JS —
- *    network requests, file I/O, timers. Promises tame
- *    the chaos of callbacks into flat, composable chains
- *    with built-in error handling, making async code
- *    readable, predictable, and resilient.
- * ========================================================
+ *    JavaScript is single-threaded. Network calls, file reads,
+ *    and timers don't block — they complete "later." Promises
+ *    give you a clean way to say "when this finishes, do that"
+ *    without descending into callback hell.
+ * ============================================================
  *
- *  STORY — India Post Speed Post Delivery Service
- *  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *  India Post runs the Speed Post service across the
- *  country. Each delivery is a Promise: it will either be
- *  fulfilled (parcel delivered) or rejected (returned to
- *  sender). The postmaster chains deliveries, coordinates
- *  multiple branches, and ensures every failure is logged
- *  — never silently lost.
- * ========================================================
+ *  STORY — Zomato Food Delivery
+ *  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *  Every Zomato order is a Promise. You place an order
+ *  (pending), the restaurant either prepares it (fulfilled)
+ *  or cancels it (rejected). The delivery chain — kitchen →
+ *  rider → doorstep — is a .then() chain. Multiple orders
+ *  from different restaurants at once? That's Promise.all().
+ * ============================================================
  */
 
-// ========================================================
-//  EXAMPLE 1 — Callback Hell vs Promises
-// ========================================================
 
-// --------------------------------------------------------
-// 1. THE CALLBACK HELL PROBLEM
-// --------------------------------------------------------
-// WHY: Nested callbacks quickly become unreadable, hard
-//      to debug, and impossible to compose. Promises
-//      flatten this "pyramid of doom" into a chain.
+// ============================================================
+//  SECTION 1: THE PROBLEM — Callback Hell
+// ============================================================
+// WHAT: Before Promises, every async step was a nested callback.
+// WHY:  Nesting makes code unreadable, error-prone, and
+//       impossible to compose. This is called the "pyramid of
+//       doom." Promises were invented to flatten this.
 
-// Simulated async operations with callbacks (the old way)
-function acceptParcelCB(trackingId, callback) {
-  setTimeout(() => {
-    console.log(`[CB] Accepted parcel #${trackingId} at post office`);
-    callback(null, { trackingId, status: "accepted" });
-  }, 100);
+function prepareOrderCB(dish, cb) {
+  setTimeout(() => cb(null, { dish, status: "prepared" }), 100);
+}
+function pickUpOrderCB(order, cb) {
+  setTimeout(() => cb(null, { ...order, status: "picked-up" }), 100);
+}
+function deliverOrderCB(order, cb) {
+  setTimeout(() => cb(null, { ...order, status: "delivered" }), 100);
 }
 
-function dispatchParcelCB(parcel, callback) {
-  setTimeout(() => {
-    console.log(`[CB] Dispatching parcel #${parcel.trackingId} via mail van`);
-    callback(null, { ...parcel, status: "in-transit" });
-  }, 100);
-}
-
-function deliverParcelCB(parcel, callback) {
-  setTimeout(() => {
-    console.log(`[CB] Delivered parcel #${parcel.trackingId} to addressee`);
-    callback(null, { ...parcel, status: "delivered" });
-  }, 100);
-}
-
-// Callback hell — each step is nested deeper
-acceptParcelCB("SP101", (err, parcel) => {
-  if (err) return console.log("Error:", err);
-  dispatchParcelCB(parcel, (err, parcel) => {
-    if (err) return console.log("Error:", err);
-    deliverParcelCB(parcel, (err, parcel) => {
-      if (err) return console.log("Error:", err);
-      console.log("[CB] Final status:", parcel.status);
+// The Pyramid of Doom ↓
+console.log("--- Section 1: Callback Hell (the problem) ---");
+prepareOrderCB("Biryani", (err, order) => {
+  if (err) return console.log(err);
+  pickUpOrderCB(order, (err, order) => {        // ← nesting deeper
+    if (err) return console.log(err);
+    deliverOrderCB(order, (err, order) => {      // ← even deeper
+      if (err) return console.log(err);
+      console.log(`  [Callback] ${order.dish} → ${order.status}`);
     });
   });
 });
-// (Output arrives after timeouts — see below for Promise version)
+// Each step nests deeper. Imagine 10 steps — unreadable!
+// Promises flatten this into a clean chain. Let's see how.
 
 
-// --------------------------------------------------------
-// 2. THE PROMISE CONSTRUCTOR
-// --------------------------------------------------------
-// WHY: new Promise((resolve, reject) => { ... }) wraps an
-//      async operation. Call resolve(value) on success, or
-//      reject(reason) on failure. The Promise is pending
-//      until one of these is called.
+// ============================================================
+//  SECTION 2: CREATING A PROMISE
+// ============================================================
+// WHAT: new Promise((resolve, reject) => { ... }) wraps any
+//       async operation into an object that represents a
+//       future result.
+//
+// WHY:  Instead of passing callbacks, you return a Promise.
+//       The consumer decides what to do with the result.
+//
+// A Promise has exactly 3 states:
+//   pending   → operation still running
+//   fulfilled → resolve(value) was called (success)
+//   rejected  → reject(error) was called   (failure)
+// Once settled (fulfilled or rejected), it NEVER changes.
 
-function acceptParcel(trackingId) {
+function prepareOrder(dish) {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
-      if (!trackingId) {
-        reject(new Error("Missing tracking ID"));
+      if (!dish) {
+        reject(new Error("No dish specified!"));
         return;
       }
-      console.log(`Accepted parcel #${trackingId} at post office`);
-      resolve({ trackingId, status: "accepted" });
-    }, 150);
-  });
-}
-
-function dispatchParcel(parcel) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      console.log(`Dispatching parcel #${parcel.trackingId} via mail van`);
-      resolve({ ...parcel, status: "in-transit" });
-    }, 150);
-  });
-}
-
-function deliverParcel(parcel) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      // Simulate occasional failure
-      if (parcel.trackingId === "SP999") {
-        reject(new Error(`Delivery failed for parcel #${parcel.trackingId} — address not found`));
-        return;
-      }
-      console.log(`Delivered parcel #${parcel.trackingId}!`);
-      resolve({ ...parcel, status: "delivered" });
-    }, 150);
-  });
-}
-
-
-// --------------------------------------------------------
-// 3. .then(), .catch(), .finally() & CHAINING
-// --------------------------------------------------------
-// WHY: .then() handles success, .catch() handles rejection,
-//      and .finally() runs cleanup regardless. Each returns
-//      a NEW Promise, enabling flat chains.
-
-console.log("\n--- Promise Chain (parcel #SP201) ---");
-
-acceptParcel("SP201")
-  .then(parcel => dispatchParcel(parcel))
-  .then(parcel => deliverParcel(parcel))
-  .then(parcel => {
-    console.log(`Parcel #${parcel.trackingId} final status: ${parcel.status}`);
-    // Output: Parcel #SP201 final status: delivered
-  })
-  .catch(error => {
-    console.log(`Delivery error: ${error.message}`);
-  })
-  .finally(() => {
-    console.log("Delivery attempt for #SP201 complete.\n");
-  });
-
-
-// --------------------------------------------------------
-// 4. ERROR PROPAGATION IN CHAINS
-// --------------------------------------------------------
-// WHY: A rejection at any point in a chain skips forward
-//      to the nearest .catch(). You don't need error
-//      handling at every step — one catch covers the chain.
-
-setTimeout(() => {
-  console.log("--- Error Propagation (parcel #SP999) ---");
-
-  acceptParcel("SP999")
-    .then(parcel => dispatchParcel(parcel))
-    .then(parcel => deliverParcel(parcel))   // this rejects for #SP999
-    .then(parcel => {
-      // This is skipped because of the rejection above
-      console.log("This will NOT run.");
-    })
-    .catch(error => {
-      console.log(`Caught: ${error.message}`);
-      // Output: Caught: Delivery failed for parcel #SP999 — address not found
-    })
-    .finally(() => {
-      console.log("Delivery attempt for #SP999 complete.\n");
-    });
-}, 700);
-
-
-// --------------------------------------------------------
-// 5. Promise.resolve() & Promise.reject()
-// --------------------------------------------------------
-// WHY: Shortcuts to create already-settled Promises — useful
-//      in tests, caches, and normalising sync values.
-
-const instantDelivery = Promise.resolve({
-  trackingId: "SP300",
-  status: "delivered"
-});
-
-instantDelivery.then(parcel =>
-  console.log(`Instant: Parcel #${parcel.trackingId} is ${parcel.status}`)
-);
-// Output: Instant: Parcel #SP300 is delivered
-
-const instantFail = Promise.reject(new Error("Parcel damaged in sorting hub!"));
-instantFail.catch(err => console.log(`Instant fail: ${err.message}`));
-// Output: Instant fail: Parcel damaged in sorting hub!
-
-
-// ========================================================
-//  EXAMPLE 2 — Promise Combinators
-// ========================================================
-
-// Helper: simulate a branch office delivery with a given delay
-function branchDelivery(branchName, trackingId, delayMs, shouldFail = false) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (shouldFail) {
-        reject(new Error(`${branchName} failed parcel #${trackingId}`));
-      } else {
-        resolve({
-          branch: branchName,
-          trackingId,
-          status: "delivered"
-        });
-      }
-    }, delayMs);
-  });
-}
-
-// --------------------------------------------------------
-// 6. Promise.all() — ALL must succeed
-// --------------------------------------------------------
-// WHY: Wait for multiple async tasks in parallel. If ANY
-//      one rejects, the entire result rejects immediately.
-
-setTimeout(() => {
-  console.log("--- Promise.all() ---");
-
-  const morningBatch = Promise.all([
-    branchDelivery("Connaught Place Branch", "SP401", 200),
-    branchDelivery("Lajpat Nagar Branch", "SP402", 300),
-    branchDelivery("Sarojini Nagar Branch", "SP403", 100)
-  ]);
-
-  morningBatch
-    .then(results => {
-      console.log("All parcels delivered:");
-      results.forEach(r =>
-        console.log(`  ${r.branch} -> parcel #${r.trackingId}`)
-      );
-      // Output:
-      //   Connaught Place Branch -> parcel #SP401
-      //   Lajpat Nagar Branch -> parcel #SP402
-      //   Sarojini Nagar Branch -> parcel #SP403
-    })
-    .catch(err => console.log("Batch failed:", err.message));
-}, 1400);
-
-// When one fails:
-setTimeout(() => {
-  console.log("\n--- Promise.all() with a failure ---");
-
-  Promise.all([
-    branchDelivery("Karol Bagh Branch", "SP501", 100),
-    branchDelivery("Chandni Chowk Branch", "SP502", 200, true), // fails
-    branchDelivery("Nehru Place Branch", "SP503", 300)
-  ])
-    .then(() => console.log("This won't run"))
-    .catch(err => console.log(`Batch failed: ${err.message}`));
-    // Output: Batch failed: Chandni Chowk Branch failed parcel #SP502
-}, 2100);
-
-
-// --------------------------------------------------------
-// 7. Promise.allSettled() — WAIT for all, never short-circuit
-// --------------------------------------------------------
-// WHY: Sometimes you need every result regardless of
-//      success or failure — for logging, reports, retries.
-
-setTimeout(() => {
-  console.log("\n--- Promise.allSettled() ---");
-
-  Promise.allSettled([
-    branchDelivery("Mylapore Branch", "SP601", 100),
-    branchDelivery("T Nagar Branch", "SP602", 200, true), // fails
-    branchDelivery("Anna Nagar Branch", "SP603", 150)
-  ]).then(results => {
-    results.forEach(result => {
-      if (result.status === "fulfilled") {
-        console.log(`  OK: ${result.value.branch} delivered #${result.value.trackingId}`);
-      } else {
-        console.log(`  FAIL: ${result.reason.message}`);
-      }
-    });
-    // Output:
-    //   OK: Mylapore Branch delivered #SP601
-    //   FAIL: T Nagar Branch failed parcel #SP602
-    //   OK: Anna Nagar Branch delivered #SP603
-  });
-}, 2700);
-
-
-// --------------------------------------------------------
-// 8. Promise.race() — FIRST to settle wins
-// --------------------------------------------------------
-// WHY: Useful for timeouts, fastest-response caching, and
-//      choosing the quickest route.
-
-setTimeout(() => {
-  console.log("\n--- Promise.race() ---");
-
-  Promise.race([
-    branchDelivery("Slow Dak Ghar",  "SP701", 500),
-    branchDelivery("Fast Dak Ghar",  "SP702", 50),
-    branchDelivery("Mid Dak Ghar",   "SP703", 200)
-  ]).then(winner => {
-    console.log(`Race winner: ${winner.branch} (parcel #${winner.trackingId})`);
-    // Output: Race winner: Fast Dak Ghar (parcel #SP702)
-  });
-}, 3200);
-
-
-// --------------------------------------------------------
-// 9. Promise.any() — FIRST to FULFILL wins
-// --------------------------------------------------------
-// WHY: Like race(), but ignores rejections. Only rejects
-//      (with AggregateError) if ALL promises reject.
-
-setTimeout(() => {
-  console.log("\n--- Promise.any() ---");
-
-  Promise.any([
-    branchDelivery("Branch J", "SP801", 300, true),  // fails
-    branchDelivery("Branch K", "SP802", 200, true),  // fails
-    branchDelivery("Branch L", "SP803", 400)          // succeeds
-  ]).then(winner => {
-    console.log(`First success: ${winner.branch} (parcel #${winner.trackingId})`);
-    // Output: First success: Branch L (parcel #SP803)
-  });
-
-  // When ALL fail:
-  Promise.any([
-    branchDelivery("Branch M", "SP901", 100, true),
-    branchDelivery("Branch N", "SP902", 200, true)
-  ]).catch(err => {
-    console.log(`All failed: ${err.constructor.name}`);
-    console.log(`Errors: ${err.errors.map(e => e.message).join("; ")}`);
-    // Output: All failed: AggregateError
-    // Output: Errors: Branch M failed parcel #SP901; Branch N failed parcel #SP902
-  });
-}, 3800);
-
-
-// ========================================================
-//  EXAMPLE 3 — Practical Patterns
-// ========================================================
-
-// --------------------------------------------------------
-// 10. CHAINING WITH DATA TRANSFORMATION
-// --------------------------------------------------------
-// WHY: Each .then() can return a transformed value (not
-//      necessarily a Promise). The next .then() receives
-//      that transformed value — great for pipelines.
-
-setTimeout(() => {
-  console.log("\n--- Chaining with Transformation ---");
-
-  acceptParcel("SP555")
-    .then(parcel => {
-      // Add tracking info
-      return { ...parcel, tracking: "EE123456789IN" };
-    })
-    .then(parcel => {
-      // Calculate delivery fee in rupees
-      return { ...parcel, fee: 49 };
-    })
-    .then(parcel => dispatchParcel(parcel))
-    .then(parcel => deliverParcel(parcel))
-    .then(parcel => {
-      console.log(`Final parcel:`, JSON.stringify(parcel));
-      // Output: Final parcel: {"trackingId":"SP555","status":"delivered","tracking":"EE123456789IN","fee":49}
-    })
-    .catch(err => console.log("Error:", err.message));
-}, 4500);
-
-
-// --------------------------------------------------------
-// 11. RETURNING PROMISES FROM .then() (FLATTENING)
-// --------------------------------------------------------
-// WHY: If .then() returns a Promise, the chain waits for
-//      it to settle before proceeding. This is how
-//      sequential async steps stay flat instead of nested.
-
-function notifyRecipient(trackingId) {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      console.log(`SMS sent to recipient for parcel #${trackingId}`);
-      resolve(`sms-sent-${trackingId}`);
+      console.log(`    Kitchen: ${dish} is ready!`);
+      resolve({ dish, status: "prepared" });
     }, 100);
   });
 }
 
+function pickUpOrder(order) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      console.log(`    Rider: Picked up ${order.dish}`);
+      resolve({ ...order, status: "picked-up" });
+    }, 100);
+  });
+}
+
+function deliverOrder(order) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (order.dish === "CANCEL_TEST") {
+        reject(new Error(`${order.dish} — delivery cancelled!`));
+        return;
+      }
+      console.log(`    Doorstep: ${order.dish} delivered!`);
+      resolve({ ...order, status: "delivered" });
+    }, 100);
+  });
+}
+
+
+// ============================================================
+//  SECTION 3: CONSUMING A PROMISE — .then(), .catch(), .finally()
+// ============================================================
+// WHAT: .then(fn)    → runs when the Promise fulfills (success)
+//       .catch(fn)   → runs when the Promise rejects  (failure)
+//       .finally(fn) → runs either way (cleanup)
+//
+// WHY:  Separates "do the work" from "handle the result."
+//       Each method returns a NEW Promise, enabling chaining.
+
 setTimeout(() => {
-  console.log("\n--- Returning Promises in .then() ---");
+  console.log("\n--- Section 3: .then / .catch / .finally ---");
 
-  acceptParcel("SP777")
-    .then(parcel => deliverParcel(parcel))          // returns a Promise
-    .then(parcel => notifyRecipient(parcel.trackingId))  // also returns a Promise
-    .then(smsResult => {
-      console.log(`Notification result: ${smsResult}`);
-      // Output: Notification result: sms-sent-SP777
+  prepareOrder("Butter Chicken")
+    .then(order => {
+      console.log(`  .then → ${order.dish} is ${order.status}`);
     })
-    .catch(err => console.log("Error:", err.message));
-}, 5200);
+    .catch(err => {
+      console.log(`  .catch → ${err.message}`);
+    })
+    .finally(() => {
+      console.log(`  .finally → cleanup runs no matter what`);
+    });
+}, 600);
 
 
-// --------------------------------------------------------
-// 12. TIMEOUT PATTERN WITH Promise.race()
-// --------------------------------------------------------
-// WHY: Race a real operation against a timer to implement
-//      a timeout — if the operation is too slow, reject.
+// ============================================================
+//  SECTION 4: CHAINING — The Real Power of Promises
+// ============================================================
+// WHAT: Return a value (or another Promise) from .then() and
+//       the next .then() receives it. This builds a flat
+//       pipeline of sequential steps.
+//
+// WHY:  This is the whole point of Promises — flat chains
+//       instead of the nested callbacks we saw in Section 1.
+//       Compare the two patterns side by side:
+//
+//   Callbacks:                    Promises:
+//   prepare(dish, (err, o) => {   prepare(dish)
+//     pickup(o, (err, o) => {       .then(o => pickup(o))
+//       deliver(o, (err, o) => {    .then(o => deliver(o))
+//         done(o);                  .then(o => done(o))
+//       })                          .catch(handleError)
+//     })
+//   })
+//
+//   Nested pyramid.               Flat chain. Night and day!
+
+setTimeout(() => {
+  console.log("\n--- Section 4: Chaining (flat pipeline) ---");
+
+  prepareOrder("Paneer Tikka")
+    .then(order => pickUpOrder(order))     // returns Promise → chain waits
+    .then(order => deliverOrder(order))     // returns Promise → chain waits
+    .then(order => {
+      console.log(`  Final: ${order.dish} is ${order.status}!`);
+    })
+    .catch(err => {
+      console.log(`  Error: ${err.message}`);
+    })
+    .finally(() => {
+      console.log("  Order complete.");
+    });
+}, 1200);
+
+
+// ============================================================
+//  SECTION 5: ERROR PROPAGATION
+// ============================================================
+// WHAT: If any step in a chain rejects, the error skips all
+//       following .then()s and jumps to the nearest .catch().
+//
+// WHY:  You don't need error checks at every step. One
+//       .catch() at the end covers the entire chain — just
+//       like a try/catch block wrapping multiple statements.
+
+setTimeout(() => {
+  console.log("\n--- Section 5: Error Propagation ---");
+
+  prepareOrder(null)   // ← null dish → reject happens here!
+    .then(order => {
+      console.log("  SKIPPED — this won't run");
+      return pickUpOrder(order);
+    })
+    .then(order => {
+      console.log("  SKIPPED — this also won't run");
+      return deliverOrder(order);
+    })
+    .catch(err => {
+      // The rejection from prepareOrder(null) jumps here,
+      // skipping both .then()s above.
+      console.log(`  Caught: ${err.message}`);
+      // Output: Caught: No dish specified!
+    })
+    .finally(() => {
+      console.log("  .finally runs even after errors.");
+    });
+}, 1900);
+
+
+// ============================================================
+//  SECTION 6: SHORTCUTS — Promise.resolve() & Promise.reject()
+// ============================================================
+// WHAT: Create already-settled Promises in one line.
+// WHY:  Useful for caches ("I already have the result"),
+//       testing, and normalising sync values into chains.
+
+setTimeout(() => {
+  console.log("\n--- Section 6: Promise.resolve & Promise.reject ---");
+
+  // Already fulfilled — no waiting
+  const cached = Promise.resolve({ dish: "Dal Makhani", status: "delivered" });
+  cached.then(o => console.log(`  Cached: ${o.dish} → ${o.status}`));
+
+  // Already rejected — instant error
+  const failed = Promise.reject(new Error("Restaurant closed"));
+  failed.catch(err => console.log(`  Instant fail: ${err.message}`));
+}, 2500);
+
+
+// ============================================================
+//  SECTION 7: RUNNING PROMISES IN PARALLEL — Combinators
+// ============================================================
+// WHAT: Fire multiple promises at the same time, combine results.
+// WHY:  Real apps fire many async calls at once — API calls,
+//       DB queries, file reads. Combinators coordinate them.
+
+// Helper: simulate a restaurant with variable prep time
+function restaurantOrder(name, dish, delayMs, willFail = false) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (willFail) reject(new Error(`${name} cancelled ${dish}`));
+      else resolve({ restaurant: name, dish, status: "ready" });
+    }, delayMs);
+  });
+}
+
+
+// ---------- 7a. Promise.all() — ALL must succeed ----------
+// WHAT: Takes an array of Promises, resolves with array of results.
+// WHY:  When you need ALL data before proceeding (e.g., load
+//       user profile + orders + notifications before rendering).
+// GOTCHA: If ANY one rejects, the entire Promise.all rejects!
+
+setTimeout(() => {
+  console.log("\n--- 7a: Promise.all() — all must succeed ---");
+
+  Promise.all([
+    restaurantOrder("Haldiram's",  "Chole Bhature", 200),
+    restaurantOrder("Bikanervala", "Rasgulla",      150),
+    restaurantOrder("Sagar Ratna", "Dosa",          100),
+  ])
+    .then(results => {
+      console.log("  All ready:");
+      results.forEach(r => console.log(`    ${r.restaurant}: ${r.dish}`));
+    })
+    .catch(err => console.log(`  Failed: ${err.message}`));
+}, 3000);
+
+// Promise.all with one failure — the whole batch fails:
+setTimeout(() => {
+  console.log("\n--- 7a: Promise.all() — one failure breaks it ---");
+
+  Promise.all([
+    restaurantOrder("Paradise",   "Biryani",  100),
+    restaurantOrder("Aditi",      "Naan",     200, true),  // ← cancels!
+    restaurantOrder("Moti Mahal", "Tandoori", 300),
+  ])
+    .then(() => console.log("  This won't run"))
+    .catch(err => console.log(`  Batch failed: ${err.message}`));
+    // Output: Batch failed: Aditi cancelled Naan
+}, 3600);
+
+
+// ---------- 7b. Promise.allSettled() — wait for ALL ----------
+// WHAT: Waits for every Promise, never short-circuits. Returns
+//       array of { status, value } or { status, reason }.
+// WHY:  When you need every result regardless of success or
+//       failure — for logging, dashboards, retry queues.
+
+setTimeout(() => {
+  console.log("\n--- 7b: Promise.allSettled() — get every result ---");
+
+  Promise.allSettled([
+    restaurantOrder("Punjab Grill",    "Lassi",  100),
+    restaurantOrder("Cafe Delhi",      "Samosa", 200, true),  // fails
+    restaurantOrder("Chennai Express", "Idli",   150),
+  ]).then(results => {
+    results.forEach(r => {
+      if (r.status === "fulfilled") {
+        console.log(`    OK:   ${r.value.restaurant} → ${r.value.dish}`);
+      } else {
+        console.log(`    FAIL: ${r.reason.message}`);
+      }
+    });
+  });
+}, 4200);
+
+
+// ---------- 7c. Promise.race() — first to SETTLE wins ----------
+// WHAT: Returns the result of whichever Promise settles first,
+//       whether it fulfilled or rejected.
+// WHY:  Timeouts, fastest-mirror selection, "show me the
+//       quickest response."
+
+setTimeout(() => {
+  console.log("\n--- 7c: Promise.race() — fastest wins ---");
+
+  Promise.race([
+    restaurantOrder("Slow Kitchen",   "Thali",   500),
+    restaurantOrder("Fast Kitchen",   "Maggi",    50),   // ← fastest!
+    restaurantOrder("Medium Kitchen", "Paratha", 200),
+  ]).then(winner => {
+    console.log(`  Winner: ${winner.restaurant} with ${winner.dish}`);
+    // Output: Winner: Fast Kitchen with Maggi
+  });
+}, 4800);
+
+
+// ---------- 7d. Promise.any() — first to FULFILL wins ----------
+// WHAT: Like race(), but ignores rejections. Only rejects
+//       (with AggregateError) if ALL promises reject.
+// WHY:  "Give me the first working result, I don't care about
+//       failures." E.g., try 3 CDN mirrors, use first success.
+
+setTimeout(() => {
+  console.log("\n--- 7d: Promise.any() — first success wins ---");
+
+  Promise.any([
+    restaurantOrder("Shop A", "Chai", 300, true),  // fails
+    restaurantOrder("Shop B", "Chai", 200, true),  // fails
+    restaurantOrder("Shop C", "Chai", 400),         // ← only success!
+  ]).then(winner => {
+    console.log(`  First success: ${winner.restaurant}`);
+    // Output: First success: Shop C
+  });
+
+  // When ALL fail → AggregateError
+  Promise.any([
+    restaurantOrder("X", "Chai", 100, true),
+    restaurantOrder("Y", "Chai", 200, true),
+  ]).catch(err => {
+    console.log(`  All failed: ${err.constructor.name} (${err.errors.length} errors)`);
+    // Output: All failed: AggregateError (2 errors)
+  });
+}, 5400);
+
+
+// ============================================================
+//  SECTION 8: REAL-WORLD PATTERN — Timeout with Promise.race()
+// ============================================================
+// WHAT: Race the real operation against a timer Promise.
+// WHY:  APIs and databases can hang forever. A timeout
+//       rejects if the operation takes too long — essential
+//       in production code.
 
 function withTimeout(promise, ms) {
-  const timeout = new Promise((_, reject) => {
+  const timer = new Promise((_, reject) => {
     setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms);
   });
-  return Promise.race([promise, timeout]);
+  return Promise.race([promise, timer]);
 }
 
 setTimeout(() => {
-  console.log("\n--- Timeout Pattern ---");
+  console.log("\n--- Section 8: Timeout Pattern ---");
 
-  const slowDelivery = branchDelivery("Remote Hill Station Branch", "SP888", 5000);
+  const slowOrder = restaurantOrder("Slow Dhaba", "Thali", 5000);
 
-  withTimeout(slowDelivery, 300)
-    .then(result => console.log("Delivered:", result))
-    .catch(err => console.log(`Timeout! ${err.message}`));
-    // Output: Timeout! Timed out after 300ms
-}, 5800);
+  withTimeout(slowOrder, 300)
+    .then(result => console.log("  Delivered:", result))
+    .catch(err => console.log(`  ${err.message}`));
+    // Output: Timed out after 300ms
+}, 6000);
+
+
+// ============================================================
+//  SECTION 9: CHAINING WITH DATA TRANSFORMATION
+// ============================================================
+// WHAT: .then() can return plain values (not just Promises).
+//       The next .then() receives that value wrapped in a
+//       fulfilled Promise automatically.
+// WHY:  Lets you transform data step-by-step in a pipeline,
+//       mixing sync transforms with async operations.
+
+setTimeout(() => {
+  console.log("\n--- Section 9: Data Transformation in Chains ---");
+
+  prepareOrder("Chole Bhature")
+    .then(order => {
+      // Sync transform — add delivery fee (returns plain object)
+      return { ...order, fee: 49, rating: null };
+    })
+    .then(order => {
+      // Another sync transform — assign a rider
+      return { ...order, rider: "Rahul" };
+    })
+    .then(order => deliverOrder(order))    // async step (returns Promise)
+    .then(order => {
+      // Final sync transform
+      return { ...order, rating: 4.5 };
+    })
+    .then(order => {
+      console.log(`  ${order.dish}: ₹${order.fee}, rider ${order.rider}, rating ${order.rating}`);
+      // Output: Chole Bhature: ₹49, rider Rahul, rating 4.5
+    })
+    .catch(err => console.log(`  Error: ${err.message}`));
+}, 6600);
 
 
 /**
- * ========================================================
+ * ============================================================
  *  KEY TAKEAWAYS
- * ========================================================
- *  1. A Promise represents a future value — pending,
- *     fulfilled, or rejected. It replaces nested callbacks
- *     with flat, readable chains.
+ * ============================================================
+ *  1. A Promise = a future value. Three states: pending →
+ *     fulfilled (success) or rejected (failure). Once settled,
+ *     it never changes.
  *
  *  2. new Promise((resolve, reject) => { ... }) wraps any
- *     async operation. resolve(val) fulfills; reject(err)
- *     rejects.
+ *     async operation. Call resolve(value) or reject(error).
  *
- *  3. .then() handles fulfillment, .catch() handles
- *     rejection, .finally() always runs. Each returns a
- *     new Promise, enabling chaining.
+ *  3. .then() handles success, .catch() handles failure,
+ *     .finally() runs cleanup. Each returns a NEW Promise.
  *
- *  4. Errors propagate down the chain until a .catch()
- *     intercepts them — one catch can cover many steps.
+ *  4. Chaining flattens callbacks: return values or Promises
+ *     from .then() to build readable, flat pipelines.
  *
- *  5. Promise.all()        — all must succeed (fail-fast)
- *     Promise.allSettled() — wait for all (never short-circuits)
- *     Promise.race()       — first to settle wins
- *     Promise.any()        — first to fulfill wins
+ *  5. Error propagation: a rejection anywhere in the chain
+ *     skips to the nearest .catch() — one catch covers all.
  *
- *  6. Promise.resolve() and Promise.reject() create
- *     pre-settled Promises for caching and normalisation.
+ *  6. Four combinators for parallel work:
+ *       all()        → all must succeed (fail-fast)
+ *       allSettled() → wait for all, report each outcome
+ *       race()       → first to settle wins
+ *       any()        → first to fulfill wins
  *
- *  7. Returning a Promise inside .then() flattens the
- *     chain — no nesting needed for sequential steps.
- * ========================================================
+ *  7. Promise.resolve() / Promise.reject() create pre-settled
+ *     Promises — handy for caches, tests, normalisation.
+ *
+ *  8. Timeout pattern: Promise.race([operation, timer]) is
+ *     essential for production reliability.
+ * ============================================================
  */

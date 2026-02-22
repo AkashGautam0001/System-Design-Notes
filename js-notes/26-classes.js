@@ -12,16 +12,16 @@
  *  React (class components) and every Node.js ORM.
  * ============================================================
  *
- *  STORY: Welcome to the Indian Army Regiment. Every jawan
- *  (soldier) who joins the regiment is enrolled through the
- *  Regiment's class blueprint. They get a name, a rank, and
- *  shared regimental methods — all stamped from the same template
- *  but each jawan is a unique instance.
+ *  STORY: Welcome to the IPL Cricket Academy. Every cricketer
+ *  who joins the academy is enrolled through the Academy's
+ *  class blueprint. They get a name, a role, and shared
+ *  training methods — all stamped from the same template
+ *  but each cricketer is a unique instance.
  * ============================================================
  */
 
 // ============================================================
-//  EXAMPLE 1 — The Indian Army Regiment
+//  EXAMPLE 1 — The IPL Cricket Academy
 // ============================================================
 
 // WHY: The `class` keyword provides a clean, readable way to
@@ -29,73 +29,73 @@
 // the hood it's still prototypes — but the syntax is far
 // friendlier for humans.
 
-class Jawan {
-  // The constructor runs when you call `new Jawan(...)`.
-  constructor(name, rank) {
-    // These are instance properties — each jawan gets their own.
+class Cricketer {
+  // The constructor runs when you call `new Cricketer(...)`.
+  constructor(name, role) {
+    // These are instance properties — each cricketer gets their own.
     this.name = name;
-    this.rank = rank;
-    this.yearsOfService = 1;
-    this.fitnessScore = 100;
+    this.role = role;
+    this.matchesPlayed = 0;
+    this.stamina = 100;
   }
 
-  // Methods defined here go on Jawan.prototype — shared.
+  // Methods defined here go on Cricketer.prototype — shared.
   introduce() {
-    return `${this.name} the ${this.rank} (Yrs:${this.yearsOfService}, Fitness: ${this.fitnessScore})`;
+    return `${this.name} the ${this.role} (Matches:${this.matchesPlayed}, Stamina: ${this.stamina})`;
   }
 
-  drill(hours) {
-    const pointsGained = hours * 10;
-    this.yearsOfService += Math.floor(pointsGained / 50);
-    return `${this.name} drilled ${hours}h, gained ${pointsGained} pts. Now Yrs:${this.yearsOfService}`;
+  practice(hours) {
+    const runsScored = hours * 10;
+    this.matchesPlayed += Math.floor(runsScored / 50);
+    return `${this.name} practised ${hours}h, scored ${runsScored} runs. Now Matches:${this.matchesPlayed}`;
   }
 
   takeFatigue(amount) {
-    this.fitnessScore = Math.max(0, this.fitnessScore - amount);
-    return this.fitnessScore > 0
-      ? `${this.name} took ${amount} fatigue. Fitness: ${this.fitnessScore}`
-      : `${this.name} has collapsed from exhaustion!`;
+    this.stamina = Math.max(0, this.stamina - amount);
+    return this.stamina > 0
+      ? `${this.name} took ${amount} fatigue. Stamina: ${this.stamina}`
+      : `${this.name} is completely exhausted — needs rest!`;
   }
 }
 
-console.log("--- The Indian Army Regiment ---");
+console.log("--- The IPL Cricket Academy ---");
 
-const soldier1 = new Jawan("Vikram", "Sepoy");
-const soldier2 = new Jawan("Arjun", "Havildar");
+const player1 = new Cricketer("Virat", "Batsman");
+const player2 = new Cricketer("Bumrah", "Bowler");
 
-console.log(soldier1.introduce());
-// Output: Vikram the Sepoy (Yrs:1, Fitness: 100)
+console.log(player1.introduce());
+// Output: Virat the Batsman (Matches:0, Stamina: 100)
 
-console.log(soldier2.introduce());
-// Output: Arjun the Havildar (Yrs:1, Fitness: 100)
+console.log(player2.introduce());
+// Output: Bumrah the Bowler (Matches:0, Stamina: 100)
 
-console.log(soldier1.drill(10));
-// Output: Vikram drilled 10h, gained 100 pts. Now Yrs:3
+console.log(player1.practice(10));
+// Output: Virat practised 10h, scored 100 runs. Now Matches:2
 
-console.log(soldier2.takeFatigue(35));
-// Output: Arjun took 35 fatigue. Fitness: 65
+console.log(player2.takeFatigue(35));
+// Output: Bumrah took 35 fatigue. Stamina: 65
 
 // ----- Proof: methods live on the prototype, not the instance -----
 console.log("\n--- Methods are on prototype ---");
-console.log(soldier1.hasOwnProperty("name"));       // Output: true  (own property)
-console.log(soldier1.hasOwnProperty("introduce"));   // Output: false (on prototype)
-console.log(soldier1.introduce === soldier2.introduce); // Output: true (shared)
+console.log(player1.hasOwnProperty("name"));       // Output: true  (own property)
+console.log(player1.hasOwnProperty("introduce"));   // Output: false (on prototype)
+console.log(player1.introduce === player2.introduce); // Output: true (shared)
 
 // WHY: Putting methods on the prototype means 1000 instances
 // share ONE copy of each method, saving memory. Only data
-// (name, rank, fitnessScore) is duplicated per instance.
+// (name, role, stamina) is duplicated per instance.
 
 // ----- Under the hood: class === function -----
 console.log("\n--- class is syntactic sugar ---");
-console.log(typeof Jawan);
+console.log(typeof Cricketer);
 // Output: function
 
-console.log(Jawan.prototype.constructor === Jawan);
+console.log(Cricketer.prototype.constructor === Cricketer);
 // Output: true
 
-// The class body's methods are on Jawan.prototype:
-console.log(Object.getOwnPropertyNames(Jawan.prototype));
-// Output: [ 'constructor', 'introduce', 'drill', 'takeFatigue' ]
+// The class body's methods are on Cricketer.prototype:
+console.log(Object.getOwnPropertyNames(Cricketer.prototype));
+// Output: [ 'constructor', 'introduce', 'practice', 'takeFatigue' ]
 
 
 // ============================================================
@@ -109,72 +109,72 @@ console.log(Object.getOwnPropertyNames(Jawan.prototype));
 // ----- Class expression -----
 console.log("\n--- Class expression ---");
 
-const DutyRoster = class {
+const MatchSchedule = class {
   constructor() {
-    this.duties = [];
+    this.matches = [];
   }
 
-  post(dutyName, location) {
-    this.duties.push({ dutyName, location });
-    return `Duty posted: "${dutyName}" — Location: ${location}`;
+  add(opponent, venue) {
+    this.matches.push({ opponent, venue });
+    return `Match added: vs "${opponent}" — Venue: ${venue}`;
   }
 
   list() {
-    if (this.duties.length === 0) return "No duties assigned.";
-    return this.duties
-      .map((d, i) => `  ${i + 1}. ${d.dutyName} (${d.location})`)
+    if (this.matches.length === 0) return "No matches scheduled.";
+    return this.matches
+      .map((m, i) => `  ${i + 1}. vs ${m.opponent} (${m.venue})`)
       .join("\n");
   }
 };
 
-const roster = new DutyRoster();
-console.log(roster.post("Border Patrol", "Siachen"));
-// Output: Duty posted: "Border Patrol" — Location: Siachen
+const schedule = new MatchSchedule();
+console.log(schedule.add("Chennai Super Kings", "Wankhede"));
+// Output: Match added: vs "Chennai Super Kings" — Venue: Wankhede
 
-console.log(roster.post("Supply Escort", "Rajasthan"));
-// Output: Duty posted: "Supply Escort" — Location: Rajasthan
+console.log(schedule.add("Kolkata Knight Riders", "Eden Gardens"));
+// Output: Match added: vs "Kolkata Knight Riders" — Venue: Eden Gardens
 
-console.log("Assigned duties:\n" + roster.list());
-// Output: Assigned duties:
-// Output:   1. Border Patrol (Siachen)
-// Output:   2. Supply Escort (Rajasthan)
+console.log("Upcoming matches:\n" + schedule.list());
+// Output: Upcoming matches:
+// Output:   1. vs Chennai Super Kings (Wankhede)
+// Output:   2. vs Kolkata Knight Riders (Eden Gardens)
 
 // ----- `this` gotcha: detaching a method -----
 console.log("\n--- this in class methods (gotcha) ---");
 
-const introduceVikram = soldier1.introduce;
-// Detached from soldier1 — `this` is now undefined (strict mode,
+const introduceVirat = player1.introduce;
+// Detached from player1 — `this` is now undefined (strict mode,
 // which classes enforce).
 try {
-  console.log(introduceVikram());
+  console.log(introduceVirat());
 } catch (e) {
   console.log(`Error: ${e.message}`);
   // Output: Error: Cannot read properties of undefined (reading 'name')
 }
 
 // Fix 1: bind the method
-const boundIntroduce = soldier1.introduce.bind(soldier1);
+const boundIntroduce = player1.introduce.bind(player1);
 console.log(boundIntroduce());
-// Output: Vikram the Sepoy (Yrs:3, Fitness: 100)
+// Output: Virat the Batsman (Matches:2, Stamina: 100)
 
 // Fix 2: Use an arrow function in the constructor (common in React)
-class NewRecruit {
+class Debutant {
   constructor(name) {
     this.name = name;
     // Arrow function captures `this` from the constructor.
-    this.salute = () => `${this.name} reporting for duty, Sir!`;
+    this.walkOut = () => `${this.name} walks out to bat for the first time!`;
   }
 }
 
-const recruit = new NewRecruit("Deepak");
-const detachedSalute = recruit.salute;
-console.log(detachedSalute());
-// Output: Deepak reporting for duty, Sir!
+const debutant1 = new Debutant("Shubman");
+const detachedWalkOut = debutant1.walkOut;
+console.log(detachedWalkOut());
+// Output: Shubman walks out to bat for the first time!
 
 // Note: arrow-in-constructor means each instance gets its OWN
 // copy of the method — not shared via prototype. Trade-off!
-const recruit2 = new NewRecruit("Suresh");
-console.log(recruit.salute === recruit2.salute);
+const debutant2 = new Debutant("Yashasvi");
+console.log(debutant1.walkOut === debutant2.walkOut);
 // Output: false
 
 
