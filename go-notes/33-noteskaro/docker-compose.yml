@@ -1,0 +1,27 @@
+# ============================================================
+# Docker Compose — NotesKaro
+# ============================================================
+# WHY COMPOSE for a single service?
+# Even with one service, Compose simplifies the workflow:
+#   docker compose up --build    (build + run in one command)
+#   docker compose down          (clean stop)
+# It also documents the port mapping, volumes, and env vars
+# in a declarative file — better than remembering docker run flags.
+# ============================================================
+
+services:
+  noteskaro:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DB_PATH=/data/noteskaro.db
+    volumes:
+      # Persist the SQLite database outside the container.
+      # Without this volume, all notes are lost when the
+      # container restarts — trainees would not be happy!
+      - noteskaro-data:/data
+
+volumes:
+  noteskaro-data:

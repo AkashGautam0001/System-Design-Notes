@@ -1,0 +1,42 @@
+# ============================================================
+# Docker Compose — VaaniSutra + Qdrant Vector Database
+# ============================================================
+# Run with: docker-compose up --build
+#
+# This starts two services:
+# 1. vaanisutra: the AI processing pipeline (port 8086)
+# 2. qdrant: vector database for semantic search (port 6333)
+#
+# WHY Qdrant as a separate service? In production at Jio,
+# the vector database is a shared cluster serving multiple
+# applications. Running it as a separate container mirrors
+# this production architecture.
+# ============================================================
+
+services:
+  vaanisutra:
+    build: .
+    ports:
+      - "8086:8086"
+    environment:
+      - PORT=8086
+      - QDRANT_URL=http://qdrant:6333
+      - COLLECTION_NAME=jio_transcripts
+      - EMBEDDING_DIM=256
+      - WORKER_COUNT=4
+      - QUEUE_SIZE=100
+    depends_on:
+      - qdrant
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:

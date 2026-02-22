@@ -1,0 +1,30 @@
+# ============================================================
+#  docker-compose.yml — BazaarAPI
+# ============================================================
+#  WHY Docker Compose? One command (docker compose up --build)
+#  builds and runs the entire API with proper environment variables
+#  and persistent data. During Flipkart's Big Billion Days prep,
+#  the QA team spins up identical environments in seconds.
+# ============================================================
+
+services:
+  bazaarapi:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DB_PATH=/app/data/bazaarapi.db
+      - JWT_SECRET=flipkart-bigbillion-change-this-in-production
+      - JWT_EXPIRY_HOURS=24
+      - READ_TIMEOUT=10
+      - WRITE_TIMEOUT=10
+      - IDLE_TIMEOUT=120
+    volumes:
+      # WHY a named volume? So the SQLite database persists across
+      # container restarts. Without it, every "docker compose down"
+      # would delete all products, users, and orders.
+      - bazaar_data:/app/data
+
+volumes:
+  bazaar_data:

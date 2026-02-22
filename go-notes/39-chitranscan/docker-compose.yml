@@ -1,0 +1,20 @@
+# ============================================================
+#  Docker Compose — ChitranScan Development
+# ============================================================
+#  Run with: docker-compose up --build
+#  Test with: curl -X POST http://localhost:8083/api/analyze \
+#               -F "image=@sample.jpg" -F "analysis_type=quality"
+# ============================================================
+
+services:
+  chitranscan:
+    build: .
+    ports:
+      - "8083:8083"
+    environment:
+      - PORT=8083
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - MAX_FILE_SIZE=10485760
+      - MAX_BATCH_SIZE=10
+      - ANALYSIS_TIMEOUT=30s
+    restart: unless-stopped

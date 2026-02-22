@@ -1,0 +1,15 @@
+# ============================================================
+#  Docker Compose — SahayakBot Development Setup
+# ============================================================
+#  WHY compose for a single service? Consistency. Even single-
+#  service projects benefit from `docker compose up` — it handles
+#  port mapping, env vars, and restarts automatically.
+
+services:
+  sahayakbot:
+    build: .
+    ports:
+      - "8085:8085"
+    env_file:
+      - .env.example
+    restart: unless-stopped

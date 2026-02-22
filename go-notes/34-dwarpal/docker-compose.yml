@@ -1,0 +1,28 @@
+# ============================================================
+#  Docker Compose — DwarPal Auth Gateway
+# ============================================================
+#  Run with: docker-compose up --build
+#
+#  This single-service setup is ideal for development and
+#  learning. In production, you'd add services for Redis
+#  (rate limiting), Prometheus (metrics), etc.
+# ============================================================
+
+services:
+  dwarpal:
+    build: .
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+      - DB_PATH=/app/data/dwarpal.db
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - JWT_EXPIRY=15m
+      - REFRESH_EXPIRY=168h
+      - BCRYPT_COST=12
+    volumes:
+      - dwarpal-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  dwarpal-data:

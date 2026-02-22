@@ -1,0 +1,44 @@
+# ============================================================
+#  Docker Compose — GyaanKhoj + Qdrant
+# ============================================================
+#  WHY Docker Compose? Two services need to work together:
+#  1. GyaanKhoj (our Go app) — the RAG search engine
+#  2. Qdrant (vector database) — stores and searches embeddings
+#
+#  At TCS, production uses Kubernetes. But for local development,
+#  `docker compose up` spins up the entire stack in seconds.
+#
+#  NOTE: GyaanKhoj works WITHOUT Qdrant too (in-memory fallback).
+#  Use this compose file when you want persistent vector storage.
+# ============================================================
+
+services:
+  gyaankhoj:
+    build: .
+    ports:
+      - "8084:8084"
+    environment:
+      - PORT=8084
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - QDRANT_URL=http://qdrant:6333
+      - COLLECTION_NAME=tcs_knowledge
+      - EMBEDDING_DIM=256
+      - CHUNK_SIZE=500
+      - CHUNK_OVERLAP=50
+      - TOP_K=5
+      - SIMILARITY_THRESHOLD=0.7
+    depends_on:
+      - qdrant
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:
